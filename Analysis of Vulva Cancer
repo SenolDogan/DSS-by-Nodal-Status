@@ -1,0 +1,47 @@
+# Prepare the data for Kaplan-Meier analysis by Nodal Status
+kmf = KaplanMeierFitter()
+# Filter the data to include only the necessary columns and drop rows with missing values
+df_km_nodal = df[['date_dss_months', 'event_dss', 'nodal']].dropna()
+# Limit the time to 60 months
+df_km_nodal = df_km_nodal[df_km_nodal['date_dss_months'] <= 60]
+
+# Create a figure for the plot
+plt.figure(figsize=(12, 10))
+# Plot the Kaplan-Meier curve for each nodal status with increased line width
+for status in sorted(df_km_nodal['nodal'].unique()):
+    kmf.fit(durations=df_km_nodal[df_km_nodal['nodal'] == status]['date_dss_months'],
+            event_observed=df_km_nodal[df_km_nodal['nodal'] == status]['event_dss'],
+            label=f'Nodal Status {int(status)}')
+    kmf.plot_survival_function(ci_show=True, linewidth=2.5)
+
+# Add labels and title
+plt.title('Disease Specific Survival (DSS) Analysis by Nodal Status')
+plt.xlabel('Time in Months')
+plt.ylabel('DSS Probability')
+plt.legend(title='Nodal Status')
+plt.grid(True)
+
+# Add numbers at risk, censored, and events for Nodal Status 0 and Nodal Status 1 in order
+kmf_status0 = KaplanMeierFitter().fit(durations=df_km_nodal[df_km_nodal['nodal'] == 0]['date_dss_months'],
+                      event_observed=df_km_nodal[df_km_nodal['nodal'] == 0]['event_dss'])
+kmf_status1 = KaplanMeierFitter().fit(durations=df_km_nodal[df_km_nodal['nodal'] == 1]['date_dss_months'],
+                      event_observed=df_km_nodal[df_km_nodal['nodal'] == 1]['event_dss'])
+add_at_risk_counts(kmf_status0, kmf_status1, ax=plt.gca(), labels=['Nodal Status 0', 'Nodal Status 1'])
+
+# Perform log-rank test to calculate p-values
+results_0_1 = logrank_test(df_km_nodal[df_km_nodal['nodal'] == 0]['date_dss_months'],
+                           df_km_nodal[df_km_nodal['nodal'] == 1]['date_dss_months'],
+                           event_observed_A=df_km_nodal[df_km_nodal['nodal'] == 0]['event_dss'],
+                           event_observed_B=df_km_nodal[df_km_nodal['nodal'] == 1]['event_dss'])
+
+# Add p-values to the plot
+p_values_text_nodal = f'p-value (Nodal Status 0 vs Nodal Status 1): {results_0_1.p_value:.4f}'
+plt.text(0.95, 0.05, p_values_text_nodal,
+         verticalalignment='bottom', horizontalalignment='right',
+         transform=plt.gca().transAxes,
+         color='black', fontsize=10, bbox=dict(facecolor='white', alpha=0.5))
+# Adjust layout to make all numbers visible
+plt.tight_layout(rect=[0, 0.1, 1, 1])
+# Save the plot
+plt.savefig('/app/static/images/kaplan_meier_dss_nodal_status_corrected.png')
+plt.close()
